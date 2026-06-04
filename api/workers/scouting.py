@@ -27,7 +27,7 @@ async def _run_scout_async(scout_id: str):
     from sqlalchemy import select, update
     from api.models.scout import Scout, ScoutUpdate
     from api.core.openrouter import openrouter_client
-    from api.services.webhook import fire_webhook
+    from api.services.webhook import fire_webhook, dispatch_event
 
     engine = create_async_engine(settings.database_url)
     AsyncSession = async_sessionmaker(engine, expire_on_commit=False)
@@ -59,6 +59,13 @@ async def _run_scout_async(scout_id: str):
                 db.add(new_update)
                 await db.execute(update(Scout).where(Scout.id == scout_id).values(next_run_at=datetime.now(timezone.utc)))
                 await db.commit()
+                event_payload = {
+                    "event": "scout.updated",
+                    "scout_id": scout.id,
+                    "update_id": new_update.id,
+                    "content": new_update.content[:500],
+                }
+                await dispatch_event(db, "scout.updated", event_payload)
                 if scout.webhook_url:
                     await fire_webhook(scout.webhook_url, scout.webhook_format, {
                         "scout_id": scout_id, "query": scout.query, "content": content,

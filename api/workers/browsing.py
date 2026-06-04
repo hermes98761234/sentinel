@@ -15,7 +15,7 @@ async def _run_browsing_task_async(task_id: str):
     from sqlalchemy import select, update
     from api.models.browsing import BrowsingTask
     from api.core.openrouter import openrouter_client
-    from api.services.webhook import fire_webhook
+    from api.services.webhook import fire_webhook, dispatch_event
     from playwright.async_api import async_playwright
 
     engine = create_async_engine(settings.database_url)
@@ -78,6 +78,14 @@ async def _run_browsing_task_async(task_id: str):
         async with AsyncSession() as db:
             await db.execute(update(BrowsingTask).where(BrowsingTask.id == task_id).values(status="failed", result=str(e), trajectory=trajectory))
             await db.commit()
+            event_type = "browsing.failed"
+            event_payload = {
+                "event": event_type,
+                "task_id": task_id,
+                "status": "failed",
+                "result": str(e),
+            }
+            await dispatch_event(db, event_type, event_payload)
         await engine.dispose()
         raise
 
@@ -86,6 +94,14 @@ async def _run_browsing_task_async(task_id: str):
         task = task_row.scalar_one()
         await db.execute(update(BrowsingTask).where(BrowsingTask.id == task_id).values(status="succeeded", result=final_result, trajectory=trajectory))
         await db.commit()
+        event_type = "browsing.completed"
+        event_payload = {
+            "event": event_type,
+            "task_id": task.id,
+            "status": "succeeded",
+            "result": final_result,
+        }
+        await dispatch_event(db, event_type, event_payload)
         if task.webhook_url:
             await fire_webhook(task.webhook_url, task.webhook_format, {"task_id": task_id, "status": "succeeded", "result": final_result})
     await engine.dispose()
