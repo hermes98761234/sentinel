@@ -6,10 +6,10 @@ from api.schemas.browsing import BrowsingTaskCreate
 from api.core.config import settings
 
 
-async def create_browsing_task(db: AsyncSession, data: BrowsingTaskCreate, api_key_id: str) -> BrowsingTask:
+async def create_browsing_task(db: AsyncSession, data: BrowsingTaskCreate, api_key_id: int) -> BrowsingTask:
     task = BrowsingTask(
         id=str(uuid.uuid4()),
-        api_key_id=api_key_id,
+        api_key_id=str(api_key_id),
         task=data.task,
         start_url=data.start_url,
         max_steps=data.max_steps,
